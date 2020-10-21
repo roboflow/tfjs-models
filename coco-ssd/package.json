@@ -36,7 +36,7 @@
     "yalc": "~1.0.0-pre.21"
   },
   "scripts": {
-    "build": "rimraf dist && tsc",
+    "build": "rimraf dist && tsc --watch",
     "lint": "tslint -p . -t verbose",
     "publish-local": "yarn build && rollup -c && yalc push",
     "build-npm": "yarn build && rollup -c --visualize --npm",

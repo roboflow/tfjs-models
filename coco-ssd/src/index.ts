@@ -57,22 +57,25 @@ export async function load(config: ModelConfig = {}) {
   }
   const base = config.base || 'lite_mobilenet_v2';
   const modelUrl = config.modelUrl;
-  if (['mobilenet_v1', 'mobilenet_v2', 'lite_mobilenet_v2'].indexOf(base) ===
-      -1) {
-    throw new Error(
-        `ObjectDetection constructed with invalid base model ` +
-        `${base}. Valid names are 'mobilenet_v1',` +
-        ` 'mobilenet_v2' and 'lite_mobilenet_v2'.`);
-  }
+  // if (['mobilenet_v1', 'mobilenet_v2', 'lite_mobilenet_v2'].indexOf(base) ===
+  //     -1) {
+  //   throw new Error(
+  //       `ObjectDetection constructed with invalid base model ` +
+  //       `${base}. Valid names are 'mobilenet_v1',` +
+  //       ` 'mobilenet_v2' and 'lite_mobilenet_v2'.`);
+  // }
 
   const objectDetection = new ObjectDetection(base, modelUrl);
-  await objectDetection.load();
+  await objectDetection.load(base);
   return objectDetection;
 }
 
 export class ObjectDetection {
   private modelPath: string;
   private model: tfconv.GraphModel;
+
+  //private zeros:tf.Tensor3D = tf.zeros([640, 640, 3], 'float32');
+  private zeros:tf.Tensor3D = tf.randomUniform([640, 640, 3], 0, 255, 'float32');
 
   constructor(base: ObjectDetectionBaseModel, modelUrl?: string) {
     this.modelPath =
@@ -83,10 +86,13 @@ export class ObjectDetection {
     return base === 'lite_mobilenet_v2' ? `ssd${base}` : `ssd_${base}`;
   }
 
-  async load() {
+  async load(base:any) {
     this.model = await tfconv.loadGraphModel(this.modelPath);
 
-    const zeroTensor = tf.zeros([1, 300, 300, 3], 'int32');
+    console.log('Starting Zero Tensor');
+
+    const zeroTensor = (base === 'yolov5s') ? tf.zeros([1, 640, 640, 3], 'float32') : tf.zeros([1, 300, 300, 3], 'int32');
+
     // Warmup the model.
     const result = await this.model.executeAsync(zeroTensor) as tf.Tensor[];
     await Promise.all(result.map(t => t.data()));
@@ -106,26 +112,53 @@ export class ObjectDetection {
    * of detected objects. Value between 0 and 1. Defaults to 0.5.
    */
   private async infer(
+      base:any,
       img: tf.Tensor3D|ImageData|HTMLImageElement|HTMLCanvasElement|
       HTMLVideoElement,
-      maxNumBoxes: number, 
+      maxNumBoxes: number,
       minScore: number): Promise<DetectedObject[]> {
+
+
     const batched = tf.tidy(() => {
       if (!(img instanceof tf.Tensor)) {
-        img = tf.browser.fromPixels(img);
+        console.log(img.height); //this confirms the video is 640x640
+
+        img = (base === 'yolov5s') ? tf.browser.fromPixels(img).resizeNearestNeighbor([640, 640]).asType('float32') : tf.browser.fromPixels(img); //img is now 480x640
+        //img = (base === 'yolov5s') ? tf.randomUniform([640, 640, 3], 0, 255, 'float32') : tf.browser.fromPixels(img); //img is now 480x640
+        console.log('img.shape', img.shape);
       }
       // Reshape to a single-element batch so we can pass it to executeAsync.
+      //img = img.reshape([640,640]);
       return img.expandDims(0);
     });
     const height = batched.shape[1];
     const width = batched.shape[2];
+
 
     // model returns two tensors:
     // 1. box classification score with shape of [1, 1917, 90]
     // 2. box location with shape of [1, 1917, 1, 4]
     // where 1917 is the number of box detectors, 90 is the number of classes.
     // and 4 is the four coordinates of the box.
+    console.log("BEFORE INFER");
+    var t0 = performance.now();
+
     const result = await this.model.executeAsync(batched) as tf.Tensor[];
+    //const result = this.model.execute(batched) as tf.Tensor[];
+
+    //const result = await this.model.executeAsync(batched) as tf.Tensor[];
+    var t1 = performance.now();
+    console.log("Call to INFER took " + (t1 - t0) + " milliseconds.");
+
+    // console.log('inference shape: ', result.shape)
+    // console.log(result[0].shape);
+    // console.log(result[1].shape);
+    // console.log(result[2].shape);
+    // console.log(result[3].shape);
+    // console.log(result)
+
+    console.log("AFTER INFER");
+    if(Math.random() < 10) return null;
 
     const scores = result[0].dataSync() as Float32Array;
     const boxes = result[1].dataSync() as Float32Array;
@@ -217,11 +250,12 @@ export class ObjectDetection {
    * of detected objects. Value between 0 and 1. Defaults to 0.5.
    */
   async detect(
+      base:any,
       img: tf.Tensor3D|ImageData|HTMLImageElement|HTMLCanvasElement|
       HTMLVideoElement,
       maxNumBoxes = 20,
       minScore = 0.5): Promise<DetectedObject[]> {
-    return this.infer(img, maxNumBoxes, minScore);
+    return this.infer(base, img, maxNumBoxes, minScore);
   }
 
   /**
