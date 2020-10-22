@@ -74,8 +74,9 @@ export class ObjectDetection {
   private modelPath: string;
   private model: tfconv.GraphModel;
 
+
   //private zeros:tf.Tensor3D = tf.zeros([640, 640, 3], 'float32');
-  private zeros:tf.Tensor3D = tf.randomUniform([640, 640, 3], 0, 255, 'float32');
+  //private zeros:tf.Tensor3D = tf.randomUniform([416, 416, 3], 0, 255, 'float32');
 
   constructor(base: ObjectDetectionBaseModel, modelUrl?: string) {
     this.modelPath =
@@ -91,7 +92,7 @@ export class ObjectDetection {
 
     console.log('Starting Zero Tensor');
 
-    const zeroTensor = (base === 'yolov5s') ? tf.zeros([1, 640, 640, 3], 'float32') : tf.zeros([1, 300, 300, 3], 'int32');
+    const zeroTensor = (base === 'yolov5s') ? tf.zeros([1, 416, 416, 3], 'float32') : tf.zeros([1, 300, 300, 3], 'int32');
 
     // Warmup the model.
     const result = await this.model.executeAsync(zeroTensor) as tf.Tensor[];
@@ -110,12 +111,15 @@ export class ObjectDetection {
    * locations. Defaults to 20.
    * @param minScore The minimum score of the returned bounding boxes
    * of detected objects. Value between 0 and 1. Defaults to 0.5.
+   * @param nmsThresh Threshold for filtering overlapping boxes
+
    */
   private async infer(
       base:any,
       img: tf.Tensor3D|ImageData|HTMLImageElement|HTMLCanvasElement|
       HTMLVideoElement,
       maxNumBoxes: number,
+      nmsThresh: number,
       minScore: number): Promise<DetectedObject[]> {
 
 
@@ -123,7 +127,7 @@ export class ObjectDetection {
       if (!(img instanceof tf.Tensor)) {
         console.log(img.height); //this confirms the video is 640x640
 
-        img = (base === 'yolov5s') ? tf.browser.fromPixels(img).resizeNearestNeighbor([640, 640]).asType('float32') : tf.browser.fromPixels(img); //img is now 480x640
+        img = (base === 'yolov5s') ? tf.browser.fromPixels(img).resizeNearestNeighbor([416, 416]).asType('float32') : tf.browser.fromPixels(img); //img is now 480x640
         //img = (base === 'yolov5s') ? tf.randomUniform([640, 640, 3], 0, 255, 'float32') : tf.browser.fromPixels(img); //img is now 480x640
         console.log('img.shape', img.shape);
       }
@@ -151,17 +155,37 @@ export class ObjectDetection {
     console.log("Call to INFER took " + (t1 - t0) + " milliseconds.");
 
     // console.log('inference shape: ', result.shape)
-    // console.log(result[0].shape);
+    console.log('mobilenet output tensor shape scores', result[0].shape);
+    console.log('mobilenet output tensor shape scores boxes,' result[1].shape);
+    //
+    // output tensor shape scores (3) [1, 1917, 90]
+    // output tensor shape scores boxes, (4) [1, 1917, 1, 4]
+
+    //yolov5 tensor
+    //console.log('yolov5 output tensor shape', result[3].shape);
+    //[1,10647,5+num_classes] 5+num_classes is x, y, width, height, confidence, class_conf...
+
+
     // console.log(result[1].shape);
     // console.log(result[2].shape);
     // console.log(result[3].shape);
     // console.log(result)
 
     console.log("AFTER INFER");
-    if(Math.random() < 10) return null;
 
     const scores = result[0].dataSync() as Float32Array;
     const boxes = result[1].dataSync() as Float32Array;
+
+    const yolov5_scores = result[3];
+    const yolov5_scores = await yolov5_scores.buffer();
+    //const yolov5_scores = yolov5_scores.get();
+    console.log('yolov5 scores buffer', yolov5_scores);
+
+    const yolov5_scores_slice = result[3].slice([0,0,5], [1,result[3].shape[2],result[3].shape[3]-5]);
+
+    console.log('yolov5 scores slice shape', yolov5_scores_slice.shape);
+
+
 
     // clean the webgl tensors
     batched.dispose();
@@ -170,18 +194,39 @@ export class ObjectDetection {
     const [maxScores, classes] =
         this.calculateMaxScores(scores, result[0].shape[1], result[0].shape[2]);
 
+    console.log('maxScores', maxScores);
+    console.log('classes tenosr', classes);
+
+    // const boxes2 =
+    //     tf.tensor2d(boxes, [result[1].shape[1], result[1].shape[3
+    // console.log('boxes2 shape', boxes2.shape);
+
+
+
+    // if(Math.random() < 10) return null;
+
     const prevBackend = tf.getBackend();
     // run post process in cpu
     tf.setBackend('cpu');
     const indexTensor = tf.tidy(() => {
-      const boxes2 =
-          tf.tensor2d(boxes, [result[1].shape[1], result[1].shape[3]]);
+      const boxes2 = tf.tensor2d(boxes, [result[1].shape[1], result[1].shape[3]);
+      //console.log('boxes2', boxes2);
+      //2d tesnsor of shape [num_objects, 4], 4 being the box locations
+
+
       return tf.image.nonMaxSuppression(
-          boxes2, maxScores, maxNumBoxes, minScore, minScore);
+          boxes2, maxScores, maxNumBoxes, nmsThresh, minScore);
     });
+
+
 
     const indexes = indexTensor.dataSync() as Float32Array;
     indexTensor.dispose();
+
+    //console.log(indexes);
+    //indexes are an array of indices of objects to be included after nms
+
+    if(Math.random() < 10) return null;
 
     // restore previous backend
     tf.setBackend(prevBackend);
@@ -254,8 +299,9 @@ export class ObjectDetection {
       img: tf.Tensor3D|ImageData|HTMLImageElement|HTMLCanvasElement|
       HTMLVideoElement,
       maxNumBoxes = 20,
+      nmsThresh = 0.5,
       minScore = 0.5): Promise<DetectedObject[]> {
-    return this.infer(base, img, maxNumBoxes, minScore);
+    return this.infer(base, img, maxNumBoxes, nmsThresh, minScore);
   }
 
   /**
