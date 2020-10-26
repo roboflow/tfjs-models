@@ -155,8 +155,8 @@ export class ObjectDetection {
     console.log("Call to INFER took " + (t1 - t0) + " milliseconds.");
 
     // console.log('inference shape: ', result.shape)
-    console.log('mobilenet output tensor shape scores', result[0].shape);
-    console.log('mobilenet output tensor shape scores boxes,' result[1].shape);
+    // console.log('mobilenet output tensor shape scores', result[0].shape);
+    // console.log('mobilenet output tensor shape scores boxes,' result[1].shape);
     //
     // output tensor shape scores (3) [1, 1917, 90]
     // output tensor shape scores boxes, (4) [1, 1917, 1, 4]
@@ -171,68 +171,151 @@ export class ObjectDetection {
     // console.log(result[3].shape);
     // console.log(result)
 
-    console.log("AFTER INFER");
+
+
+    console.log("AFTER INFER HAS OCURRED");
 
     const scores = result[0].dataSync() as Float32Array;
     const boxes = result[1].dataSync() as Float32Array;
 
-    const yolov5_scores = result[3];
-    const yolov5_scores = await yolov5_scores.buffer();
+
+
+    //const yolov5_scores = result[3];
+    //const yolov5_scores_await = await yolov5_scores.buffer();
     //const yolov5_scores = yolov5_scores.get();
-    console.log('yolov5 scores buffer', yolov5_scores);
+    // console.log('yolov5 scores buffer', yolov5_scores_await);
+    //
+    // console.log(result[3].shape[1]);
+    // console.log(result[3].shape[2]);
 
-    const yolov5_scores_slice = result[3].slice([0,0,5], [1,result[3].shape[2],result[3].shape[3]-5]);
-
-    console.log('yolov5 scores slice shape', yolov5_scores_slice.shape);
-
-
-
-    // clean the webgl tensors
-    batched.dispose();
-    tf.dispose(result);
-
-    const [maxScores, classes] =
-        this.calculateMaxScores(scores, result[0].shape[1], result[0].shape[2]);
-
-    console.log('maxScores', maxScores);
-    console.log('classes tenosr', classes);
-
-    // const boxes2 =
-    //     tf.tensor2d(boxes, [result[1].shape[1], result[1].shape[3
-    // console.log('boxes2 shape', boxes2.shape);
+    //console.log(result[3].dataSync() as Float32Array);
 
 
-
-    // if(Math.random() < 10) return null;
-
-    const prevBackend = tf.getBackend();
-    // run post process in cpu
-    tf.setBackend('cpu');
-    const indexTensor = tf.tidy(() => {
-      const boxes2 = tf.tensor2d(boxes, [result[1].shape[1], result[1].shape[3]);
-      //console.log('boxes2', boxes2);
-      //2d tesnsor of shape [num_objects, 4], 4 being the box locations
+    //slice of tensor with each of the class probabilities
 
 
-      return tf.image.nonMaxSuppression(
-          boxes2, maxScores, maxNumBoxes, nmsThresh, minScore);
-    });
+    //console.log('yolov5 scores slice shape', yolov5_scores_slice);
+    if (base === 'yolov5s') {
+        const yolov5_scores_slice = result[3].slice([0,0,5], [1,result[3].shape[1],result[3].shape[2]-5]).dataSync() as Float32Array;
+
+        const [yolov5maxScores, yolov5classes] =
+                this.calculateMaxScores(yolov5_scores_slice, result[3].shape[1],result[3].shape[2]-5);
+
+        const yolov5_confidence = result[3].slice([0,0,4], [1,result[3].shape[1],1).dataSync() as Float32Array;
+        //yolo confidence is seperately output - mobilenet must bake into class confidence prediction
+
+        const x1 = tf.sub(result[3].slice([0,0,0], [1,result[3].shape[1],1), tf.div(result[3].slice([0,0,2], [1,result[3].shape[1],1), 2));
+        const y1 = tf.sub(result[3].slice([0,0,1], [1,result[3].shape[1],1), tf.div(result[3].slice([0,0,3], [1,result[3].shape[1],1), 2));
+        const x2 = tf.add(result[3].slice([0,0,0], [1,result[3].shape[1],1), tf.div(result[3].slice([0,0,2], [1,result[3].shape[1],1), 2));
+        const y2 = tf.add(result[3].slice([0,0,1], [1,result[3].shape[1],1), tf.div(result[3].slice([0,0,3], [1,result[3].shape[1],1), 2));
+
+        const yolov5_box_corners = tf.div(tf.concat([x1, y1, x2, y2], 2), 416).dataSync() as Float32Array;
+
+        // clean the webgl tensors
+        batched.dispose();
+        tf.dispose(result);
+
+        const prevBackend = tf.getBackend();
+        // run post process in cpu
+        tf.setBackend('cpu');
+
+        const yolov5_indexTensor = tf.tidy(() => {
+
+          // output tensor shape scores boxes, (4) [1, 1917, 1, 4] (x1,y1,x2,y2) normalized
+
+          //console.log('x1', x1);
+          console.log('yolov5_box_corners, ' yolov5_box_corners);
 
 
+          const yolov5_boxes2 = tf.tensor2d(yolov5_box_corners, [result[3].shape[1], 4]);
 
-    const indexes = indexTensor.dataSync() as Float32Array;
-    indexTensor.dispose();
+          //boxes2 entries look like [0.0015282053500413895, 0.0011117402464151382, 0.04202847182750702, 0.061883047223091125, -0.07541173696517944, -0.07601074129343033
+          //console.log('boxes2 shape', boxes2); (num objects, 4 box locations)
+          //2d tesnsor of shape [num_objects, 4], 4 being the box locations (x1,y1,x2,y2) and normalized 0,1
 
-    //console.log(indexes);
-    //indexes are an array of indices of objects to be included after nms
 
-    if(Math.random() < 10) return null;
+          return tf.image.nonMaxSuppression(
+              yolov5_boxes2, yolov5_confidence, maxNumBoxes, nmsThresh, minScore);
+        });
 
-    // restore previous backend
-    tf.setBackend(prevBackend);
+        console.log('yolov5_indexTensor', yolov5_indexTensor);
 
-    return this.buildDetectedObjects(
-        width, height, boxes, maxScores, indexes, classes);
+        const yolov5_indexes = yolov5_indexTensor.dataSync() as Float32Array;
+        yolov5_indexTensor.dispose();
+
+        //console.log(indexes);
+        //indexes are an array of indices of objects to be included after nms
+
+        //if(Math.random() < 10) return null;
+
+        // restore previous backend
+        tf.setBackend(prevBackend);
+
+        return this.buildDetectedObjects(
+            width, height, yolov5_box_corners, yolov5_confidence, yolov5_indexes, yolov5classes);
+
+    }
+
+    else {
+        // clean the webgl tensors
+        batched.dispose();
+        tf.dispose(result);
+
+        const [maxScores, classes] =
+            this.calculateMaxScores(scores, result[0].shape[1], result[0].shape[2]);
+
+        // console.log('maxScores', maxScores);
+        // console.log('classes tenosr', classes);
+        //
+
+        // seems to be working - though with cells everything is low conf and prob of red cell
+        // console.log('yolov5maxScores', yolov5maxScores);
+        // console.log('yolov5classes', yolov5classes);
+
+        // const boxes2 =
+        //     tf.tensor2d(boxes, [result[1].shape[1], result[1].shape[3
+        // console.log('boxes2 shape', boxes2.shape);
+
+        //if(Math.random() < 10) return null;
+
+        const prevBackend = tf.getBackend();
+        // run post process in cpu
+        tf.setBackend('cpu');
+
+        const indexTensor = tf.tidy(() => {
+          const boxes2 = tf.tensor2d(boxes, [result[1].shape[1], result[1].shape[3]]);
+          //console.log('boxes2 ', boxes2.dataSync() as Float32Array);
+
+          //boxes2 entries look like [0.0015282053500413895, 0.0011117402464151382, 0.04202847182750702, 0.061883047223091125, -0.07541173696517944, -0.07601074129343033
+          //console.log('boxes2 shape', boxes2); (num objects, 4 box locations)
+          //2d tesnsor of shape [num_objects, 4], 4 being the box locations (x1,y1,x2,y2) and normalized 0,1
+
+
+          return tf.image.nonMaxSuppression(
+              boxes2, maxScores, maxNumBoxes, nmsThresh, minScore);
+        });
+
+        //console.log('indexTensor', indexTensor.dataSync() as Float32Array);
+        //index tensor is a tensor with the indices of the objects to keep in the list (in the case of COCO 1)
+
+
+        const indexes = indexTensor.dataSync() as Float32Array;
+        indexTensor.dispose();
+
+        //console.log(indexes);
+        //indexes are an array of indices of objects to be included after nms
+
+        //if(Math.random() < 10) return null;
+
+        // restore previous backend
+        tf.setBackend(prevBackend);
+
+        return this.buildDetectedObjects(
+            width, height, boxes, maxScores, indexes, classes);
+
+    }
+
+
   }
 
   private buildDetectedObjects(
