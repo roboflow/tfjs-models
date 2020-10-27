@@ -18,6 +18,9 @@
 import * as tfconv from '@tensorflow/tfjs-converter';
 import * as tf from '@tensorflow/tfjs-core';
 
+const imageGet = require('get-image-data');
+
+
 import {CLASSES} from './classes';
 
 const BASE_PATH = 'https://storage.googleapis.com/tfjs-models/savedmodel/';
@@ -76,7 +79,7 @@ export class ObjectDetection {
 
 
   //private zeros:tf.Tensor3D = tf.zeros([640, 640, 3], 'float32');
-  //private zeros:tf.Tensor3D = tf.randomUniform([416, 416, 3], 0, 255, 'float32');
+  //private zeros:tf.Tensor3D = tf.randomUniform([320, 320, 3], 0, 255, 'float32');
 
   constructor(base: ObjectDetectionBaseModel, modelUrl?: string) {
     this.modelPath =
@@ -92,7 +95,7 @@ export class ObjectDetection {
 
     console.log('Starting Zero Tensor');
 
-    const zeroTensor = (base === 'yolov5s') ? tf.zeros([1, 416, 416, 3], 'float32') : tf.zeros([1, 300, 300, 3], 'int32');
+    const zeroTensor = (base === 'yolov5s') ? tf.zeros([1, 320, 320, 3], 'float32') : tf.zeros([1, 300, 300, 3], 'int32');
 
     // Warmup the model.
     const result = await this.model.executeAsync(zeroTensor) as tf.Tensor[];
@@ -125,18 +128,21 @@ export class ObjectDetection {
 
     const batched = tf.tidy(() => {
       if (!(img instanceof tf.Tensor)) {
-        console.log(img.height); //this confirms the video is 640x640
+        //console.log(img.height); //this confirms the video is 640x640
 
-        img = (base === 'yolov5s') ? tf.browser.fromPixels(img).resizeNearestNeighbor([416, 416]).asType('float32') : tf.browser.fromPixels(img); //img is now 480x640
+        img = (base === 'yolov5s') ? tf.browser.fromPixels(img).resizeNearestNeighbor([320, 320]).asType('float32') : tf.browser.fromPixels(img); //img is now 480x640
         //img = (base === 'yolov5s') ? tf.randomUniform([640, 640, 3], 0, 255, 'float32') : tf.browser.fromPixels(img); //img is now 480x640
-        console.log('img.shape', img.shape);
+        //console.log('img.shape', img.shape);
       }
       // Reshape to a single-element batch so we can pass it to executeAsync.
       //img = img.reshape([640,640]);
       return img.expandDims(0);
     });
+
     const height = batched.shape[1];
     const width = batched.shape[2];
+
+
 
 
     // model returns two tensors:
@@ -144,7 +150,7 @@ export class ObjectDetection {
     // 2. box location with shape of [1, 1917, 1, 4]
     // where 1917 is the number of box detectors, 90 is the number of classes.
     // and 4 is the four coordinates of the box.
-    console.log("BEFORE INFER");
+    //console.log("BEFORE INFER");
     var t0 = performance.now();
 
     const result = await this.model.executeAsync(batched) as tf.Tensor[];
@@ -173,10 +179,9 @@ export class ObjectDetection {
 
 
 
-    console.log("AFTER INFER HAS OCURRED");
+    //console.log("AFTER INFER HAS OCURRED");
 
-    const scores = result[0].dataSync() as Float32Array;
-    const boxes = result[1].dataSync() as Float32Array;
+
 
 
 
@@ -196,38 +201,116 @@ export class ObjectDetection {
 
     //console.log('yolov5 scores slice shape', yolov5_scores_slice);
     if (base === 'yolov5s') {
-        const yolov5_scores_slice = result[3].slice([0,0,5], [1,result[3].shape[1],result[3].shape[2]-5]).dataSync() as Float32Array;
+
+
+
+        //console.log('result ', result ) //signs result shapes 0: [1, 3, 100, 31]  1: [1, 6300, 31] 2: [1,3, 1600, 31] 3: [1,3,400,31]
+        //different ordering for the cells results array...
+
+        const chosen_result_tensor = 1;
+
+
+        //console.log('result shape ', result[chosen_result_tensor].shape); //[1,3,400,31] for signs
+
+
+
+        const yolov5_scores_slice = result[chosen_result_tensor].slice([0,0,5], [1,result[chosen_result_tensor].shape[1],result[chosen_result_tensor].shape[2]-5]).dataSync() as Float32Array;
+
+        //console.log('yolov5_scores_slice', yolov5_scores_slice);
+
+        const num_objects = result[chosen_result_tensor].shape[1];
+        //console.log('num objects ', num_objects);
+
+        //var t0 = performance.now();
 
         const [yolov5maxScores, yolov5classes] =
-                this.calculateMaxScores(yolov5_scores_slice, result[3].shape[1],result[3].shape[2]-5);
+                this.calculateMaxScores(yolov5_scores_slice, result[chosen_result_tensor].shape[1],result[chosen_result_tensor].shape[2]-5);
 
-        const yolov5_confidence = result[3].slice([0,0,4], [1,result[3].shape[1],1).dataSync() as Float32Array;
+        //var t1 = performance.now();
+        //console.log("calculate max scores  " + (t1 - t0) + " milliseconds");
+
+        //console.log('yolov5classes', yolov5classes);
+
+        //var t0 = performance.now();
+
+        const yolov5_confidence = result[chosen_result_tensor].slice([0,0,4], [1,result[chosen_result_tensor].shape[1],1).dataSync() as Float32Array;
         //yolo confidence is seperately output - mobilenet must bake into class confidence prediction
 
-        const x1 = tf.sub(result[3].slice([0,0,0], [1,result[3].shape[1],1), tf.div(result[3].slice([0,0,2], [1,result[3].shape[1],1), 2));
-        const y1 = tf.sub(result[3].slice([0,0,1], [1,result[3].shape[1],1), tf.div(result[3].slice([0,0,3], [1,result[3].shape[1],1), 2));
-        const x2 = tf.add(result[3].slice([0,0,0], [1,result[3].shape[1],1), tf.div(result[3].slice([0,0,2], [1,result[3].shape[1],1), 2));
-        const y2 = tf.add(result[3].slice([0,0,1], [1,result[3].shape[1],1), tf.div(result[3].slice([0,0,3], [1,result[3].shape[1],1), 2));
 
-        const yolov5_box_corners = tf.div(tf.concat([x1, y1, x2, y2], 2), 416).dataSync() as Float32Array;
+        // const x = result[chosen_result_tensor].slice([0,0,0], [1,result[chosen_result_tensor].shape[1],1).dataSync() as Float32Array;;
+        // const y = result[chosen_result_tensor].slice([0,0,1], [1,result[chosen_result_tensor].shape[1],1).dataSync() as Float32Array;;
+        // const w = result[chosen_result_tensor].slice([0,0,2], [1,result[chosen_result_tensor].shape[1],1).dataSync() as Float32Array;;
+        // const h = result[chosen_result_tensor].slice([0,0,3], [1,result[chosen_result_tensor].shape[1],1).dataSync() as Float32Array;;
+        //
+        // console.log('x ', x);
+        // console.log('y ', y);
+        // console.log('w ', w);
+        // console.log('h ', h);
+
+
+
+
+        const x1 = tf.sub(result[chosen_result_tensor].slice([0,0,0], [1,result[chosen_result_tensor].shape[1],1), tf.div(result[chosen_result_tensor].slice([0,0,2], [1,result[chosen_result_tensor].shape[1],1), 2));
+        const y1 = tf.sub(result[chosen_result_tensor].slice([0,0,1], [1,result[chosen_result_tensor].shape[1],1), tf.div(result[chosen_result_tensor].slice([0,0,3], [1,result[chosen_result_tensor].shape[1],1), 2));
+        const x2 = tf.add(result[chosen_result_tensor].slice([0,0,0], [1,result[chosen_result_tensor].shape[1],1), tf.div(result[chosen_result_tensor].slice([0,0,2], [1,result[chosen_result_tensor].shape[1],1), 2));
+        const y2 = tf.add(result[chosen_result_tensor].slice([0,0,1], [1,result[chosen_result_tensor].shape[1],1), tf.div(result[chosen_result_tensor].slice([0,0,3], [1,result[chosen_result_tensor].shape[1],1), 2));
+
+        const yolov5_box_corners = tf.div(tf.concat([x1, y1, x2, y2], 2), 320).dataSync() as Float32Array;
+        //const yolov5_x1s = tf.concat([x1], 2).dataSync() as Float32Array;
+
+
+        //console.log('yolov5_box_corners ', yolov5_box_corners);
+        //console.log('yolov5_x1s ', yolov5_x1s);
+
+
+        //var t1 = performance.now();
+        //console.log("parse_tensors  " + (t1 - t0) + " milliseconds");
+
+
+        var t0 = performance.now();
 
         // clean the webgl tensors
         batched.dispose();
         tf.dispose(result);
+        tf.dispose(x1);
+        tf.dispose(y1);
+        tf.dispose(x2);
+        tf.dispose(y2);
+        tf.dispose(yolov5_scores_slice);
+
+        //result.dispose();
+        x1.dispose();
+        y1.dispose();
+        x2.dispose();
+        y2.dispose();
+        //yolov5_scores_slice.dispose();
+
+        var t1 = performance.now();
+        //console.log("dispose tensors  " + (t1 - t0) + " milliseconds");
+        //most of the slowdown is coming from tensor disposal - 220 ms
+
+
+
+
 
         const prevBackend = tf.getBackend();
         // run post process in cpu
         tf.setBackend('cpu');
+
+
+        var t0 = performance.now();
 
         const yolov5_indexTensor = tf.tidy(() => {
 
           // output tensor shape scores boxes, (4) [1, 1917, 1, 4] (x1,y1,x2,y2) normalized
 
           //console.log('x1', x1);
-          console.log('yolov5_box_corners, ' yolov5_box_corners);
+          //console.log('yolov5_box_corners, ' yolov5_box_corners);
+
+          //console.log('num objects ', num_objects);
 
 
-          const yolov5_boxes2 = tf.tensor2d(yolov5_box_corners, [result[3].shape[1], 4]);
+          const yolov5_boxes2 = tf.tensor2d(yolov5_box_corners, [num_objects, 4]);
 
           //boxes2 entries look like [0.0015282053500413895, 0.0011117402464151382, 0.04202847182750702, 0.061883047223091125, -0.07541173696517944, -0.07601074129343033
           //console.log('boxes2 shape', boxes2); (num objects, 4 box locations)
@@ -238,10 +321,15 @@ export class ObjectDetection {
               yolov5_boxes2, yolov5_confidence, maxNumBoxes, nmsThresh, minScore);
         });
 
-        console.log('yolov5_indexTensor', yolov5_indexTensor);
+
+
+        //console.log('yolov5_indexTensor', yolov5_indexTensor);
 
         const yolov5_indexes = yolov5_indexTensor.dataSync() as Float32Array;
         yolov5_indexTensor.dispose();
+
+        var t1 = performance.now();
+        //console.log("NMS TOOK " + (t1 - t0) + " milliseconds");
 
         //console.log(indexes);
         //indexes are an array of indices of objects to be included after nms
@@ -251,12 +339,23 @@ export class ObjectDetection {
         // restore previous backend
         tf.setBackend(prevBackend);
 
+        // console.log('yolov5_confidence', yolov5_confidence);
+        // console.log('yolov5_indexes', yolov5_indexes);
+        //
+        // console.log('yolov5maxScores', yolov5maxScores);
+
+        //something is off with confidence estimation slots 1600 - 1700 have abnormally high confidence (around 1)
+
+
         return this.buildDetectedObjects(
-            width, height, yolov5_box_corners, yolov5_confidence, yolov5_indexes, yolov5classes);
+            640, 480, yolov5_box_corners, yolov5_confidence, yolov5_indexes, yolov5classes);
 
     }
 
     else {
+
+        const scores = result[0].dataSync() as Float32Array;
+        const boxes = result[1].dataSync() as Float32Array;
         // clean the webgl tensors
         batched.dispose();
         tf.dispose(result);
@@ -321,6 +420,9 @@ export class ObjectDetection {
   private buildDetectedObjects(
       width: number, height: number, boxes: Float32Array, scores: number[],
       indexes: Float32Array, classes: number[]): DetectedObject[] {
+
+
+
     const count = indexes.length;
     const objects: DetectedObject[] = [];
     for (let i = 0; i < count; i++) {
@@ -336,12 +438,22 @@ export class ObjectDetection {
       bbox[1] = minY;
       bbox[2] = maxX - minX;
       bbox[3] = maxY - minY;
+
+
+
+      //console.log('pulling class for ', classes[indexes[i]] + 1);
+      //console.log('CLASSES', CLASSES);
       objects.push({
         bbox: bbox as [number, number, number, number],
         class: CLASSES[classes[indexes[i]] + 1].displayName,
         score: scores[indexes[i]]
       });
     }
+
+    console.log('objects ', objects );
+
+
+
     return objects;
   }
 

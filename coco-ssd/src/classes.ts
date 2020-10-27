@@ -78,6 +78,11 @@ export const CLASSES: {[key: string]: ObjectDetectionClass} = {
     id: 11,
     displayName: 'fire hydrant',
   },
+  12: {
+    name: '/m/02pv19',
+    id: 12,
+    displayName: 'placeholder',
+  },
   13: {
     name: '/m/02pv19',
     id: 13,
