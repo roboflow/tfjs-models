@@ -222,18 +222,35 @@ export class ObjectDetection {
         //console.log('result shape ', result[chosen_result_tensor].shape); //[1,3,400,31] for signs
 
 
+        var t0 = performance.now();
 
-        const yolov5_scores_slice = result[chosen_result_tensor].slice([0,0,5], [1,result[chosen_result_tensor].shape[1],result[chosen_result_tensor].shape[2]-5]).dataSync() as Float32Array;
+        // const yolov5_scores_slice = tf.tidy(() => {
+        //     return result[chosen_result_tensor].slice([0,0,5], [1,result[chosen_result_tensor].shape[1],result[chosen_result_tensor].shape[2]-5]).dataSync() as Float32Array;
+        // });
+        const yolov5_result = result[chosen_result_tensor].dataSync() as Float32Array;
+
+        var t1 = performance.now();
+        console.log("yolov5 float array dump took  " + (t1 - t0) + " milliseconds");
 
         //console.log('yolov5_scores_slice', yolov5_scores_slice);
 
+        var t0 = performance.now();
+
         const num_objects = result[chosen_result_tensor].shape[1];
+        const num_classes = result[chosen_result_tensor].shape[2]-5);
         //console.log('num objects ', num_objects);
 
         //var t0 = performance.now();
 
+        // const [yolov5maxScores, yolov5classes] =
+        //         this.calculateMaxScores(yolov5_scores_slice, num_objects, num_classes);
+
         const [yolov5maxScores, yolov5classes] =
-                this.calculateMaxScores(yolov5_scores_slice, result[chosen_result_tensor].shape[1],result[chosen_result_tensor].shape[2]-5);
+                this.calculateMaxScoresYolov5(yolov5_result, num_objects, num_classes);
+
+        var t1 = performance.now();
+        console.log("max scores took  " + (t1 - t0) + " milliseconds");
+
 
         //var t1 = performance.now();
         //console.log("calculate max scores  " + (t1 - t0) + " milliseconds");
@@ -242,7 +259,17 @@ export class ObjectDetection {
 
         //var t0 = performance.now();
 
-        const yolov5_confidence = result[chosen_result_tensor].slice([0,0,4], [1,result[chosen_result_tensor].shape[1],1).dataSync() as Float32Array;
+        var t0 = performance.now();
+
+        // const yolov5_confidence = tf.tidy(() => {
+        //     return result[chosen_result_tensor].slice([0,0,4], [1,result[chosen_result_tensor].shape[1],1).dataSync() as Float32Array;
+        // });
+
+        const yolov5_confidence = this.getConfidenceYoloV5(yolov5_result, num_objects, num_classes)
+
+        var t1 = performance.now();
+        console.log("tidy confidence took  " + (t1 - t0) + " milliseconds");
+
         //yolo confidence is seperately output - mobilenet must bake into class confidence prediction
 
 
@@ -256,21 +283,29 @@ export class ObjectDetection {
         // console.log('w ', w);
         // console.log('h ', h);
 
+        var t0 = performance.now();
+
+        // const yolov5_box_corners = tf.tidy(() => {
+        //
+        //     const x1 = tf.sub(result[chosen_result_tensor].slice([0,0,0], [1,result[chosen_result_tensor].shape[1],1), tf.div(result[chosen_result_tensor].slice([0,0,2], [1,result[chosen_result_tensor].shape[1],1), 2));
+        //     const y1 = tf.sub(result[chosen_result_tensor].slice([0,0,1], [1,result[chosen_result_tensor].shape[1],1), tf.div(result[chosen_result_tensor].slice([0,0,3], [1,result[chosen_result_tensor].shape[1],1), 2));
+        //     const x2 = tf.add(result[chosen_result_tensor].slice([0,0,0], [1,result[chosen_result_tensor].shape[1],1), tf.div(result[chosen_result_tensor].slice([0,0,2], [1,result[chosen_result_tensor].shape[1],1), 2));
+        //     const y2 = tf.add(result[chosen_result_tensor].slice([0,0,1], [1,result[chosen_result_tensor].shape[1],1), tf.div(result[chosen_result_tensor].slice([0,0,3], [1,result[chosen_result_tensor].shape[1],1), 2));
+        //
+        //     //const yolov5_box_corners = tf.div(tf.concat([x1, y1, x2, y2], 2), 320).dataSync() as Float32Array;
+        //
+        //     //switch up the box corners for display
+        //     return tf.div(tf.concat([y1, x1, y2, x2], 2), 320).dataSync() as Float32Array;
+        //
+        // });
+
+        const yolov5_box_corners = this.getBoxesYoloV5(yolov5_result, num_objects, num_classes, 320);
+
+        var t1 = performance.now();
+        console.log("tidy box corners took  " + (t1 - t0) + " milliseconds");
 
 
-
-        const x1 = tf.sub(result[chosen_result_tensor].slice([0,0,0], [1,result[chosen_result_tensor].shape[1],1), tf.div(result[chosen_result_tensor].slice([0,0,2], [1,result[chosen_result_tensor].shape[1],1), 2));
-        const y1 = tf.sub(result[chosen_result_tensor].slice([0,0,1], [1,result[chosen_result_tensor].shape[1],1), tf.div(result[chosen_result_tensor].slice([0,0,3], [1,result[chosen_result_tensor].shape[1],1), 2));
-        const x2 = tf.add(result[chosen_result_tensor].slice([0,0,0], [1,result[chosen_result_tensor].shape[1],1), tf.div(result[chosen_result_tensor].slice([0,0,2], [1,result[chosen_result_tensor].shape[1],1), 2));
-        const y2 = tf.add(result[chosen_result_tensor].slice([0,0,1], [1,result[chosen_result_tensor].shape[1],1), tf.div(result[chosen_result_tensor].slice([0,0,3], [1,result[chosen_result_tensor].shape[1],1), 2));
-
-        //const yolov5_box_corners = tf.div(tf.concat([x1, y1, x2, y2], 2), 320).dataSync() as Float32Array;
-
-        //switch up the box corners for display
-        const yolov5_box_corners = tf.div(tf.concat([y1, x1, y2, x2], 2), 320).dataSync() as Float32Array;
-
-
-        const yolov5_x1s = tf.concat([x1], 2).dataSync() as Float32Array;
+        //const yolov5_x1s = tf.concat([x1], 2).dataSync() as Float32Array;
 
 
         //console.log('yolov5_box_corners ', yolov5_box_corners);
@@ -286,26 +321,25 @@ export class ObjectDetection {
         // clean the webgl tensors
         batched.dispose();
         tf.dispose(result);
-        tf.dispose(x1);
-        tf.dispose(y1);
-        tf.dispose(x2);
-        tf.dispose(y2);
-        tf.dispose(yolov5_scores_slice);
+        // tf.dispose(x1);
+        // tf.dispose(y1);
+        // tf.dispose(x2);
+        // tf.dispose(y2);
+        // tf.dispose(yolov5_scores_slice);
 
         //result.dispose();
-        x1.dispose();
-        y1.dispose();
-        x2.dispose();
-        y2.dispose();
+        // x1.dispose();
+        // y1.dispose();
+        // x2.dispose();
+        // y2.dispose();
         //yolov5_scores_slice.dispose();
 
         var t1 = performance.now();
-        //console.log("dispose tensors  " + (t1 - t0) + " milliseconds");
+        console.log("dispose tensors  " + (t1 - t0) + " milliseconds");
         //most of the slowdown is coming from tensor disposal - 220 ms
 
 
-
-
+        var t0 = performance.now();
 
         const prevBackend = tf.getBackend();
         // run post process in cpu
@@ -343,7 +377,7 @@ export class ObjectDetection {
         yolov5_indexTensor.dispose();
 
         var t1 = performance.now();
-        //console.log("NMS TOOK " + (t1 - t0) + " milliseconds");
+        console.log("NMS TOOK " + (t1 - t0) + " milliseconds");
 
         //console.log(indexes);
         //indexes are an array of indices of objects to be included after nms
@@ -376,6 +410,8 @@ export class ObjectDetection {
 
         const [maxScores, classes] =
             this.calculateMaxScores(scores, result[0].shape[1], result[0].shape[2]);
+
+
 
         // console.log('maxScores', maxScores);
         // console.log('classes tenosr', classes);
@@ -490,6 +526,78 @@ export class ObjectDetection {
     }
     return [maxes, classes];
   }
+
+  private calculateMaxScoresYolov5(
+      scores: Float32Array, numBoxes: number,
+      numClasses: number): [number[], number[]] {
+    //to avoid creating and expensive tensor slice
+    //we dump the whole result float array in and ignore the first 5 entries (4 box coords and confidence)
+    const maxes = [];
+    const classes = [];
+    for (let i = 0; i < numBoxes; i++) {
+      let max = Number.MIN_VALUE;
+      let index = -1;
+      for (let j = 0; j < numClasses; j++) {
+        if (scores[i * numClasses + (i + 1) * 5 + j] > max) {
+          max = scores[i * numClasses + (i + 1) * 5 + j];
+          index = j;
+        }
+      }
+      maxes[i] = max;
+      classes[i] = index;
+    }
+    return [maxes, classes];
+  }
+
+  private getConfidenceYoloV5(
+      scores: Float32Array, numBoxes: number,
+      numClasses: number): number[] {\
+    //grab the 5th value for each object as the confidence
+    const confidences = [];
+    for (let i = 0; i < numBoxes; i++) {
+      confidences[i] = scores[i * (numClasses + 5) + 4];
+    }
+    return confidences;
+  }
+
+
+  private getBoxesYoloV5(
+      scores: Float32Array, numBoxes: number,
+      numClasses: number, scale_by: number): number[] {\
+    //grab the 5th value for each object as the confidence
+    const boxes = [];
+    for (let i = 0; i < numBoxes; i++) {
+      const x = scores[i * (numClasses + 5) + 0];
+      const y = scores[i * (numClasses + 5) + 1];
+      const width = scores[i * (numClasses + 5) + 2];
+      const height = scores[i * (numClasses + 5) + 3];
+      //make boxes
+      const x1 = (x - width / 2) / scale_by;
+      const y1 = (y - height / 2) / scale_by;
+      const x2 = (x + width / 2) / scale_by;
+      const y2 = (y + height / 2) / scale_by;
+
+      boxes[i * 4] = y1;
+      boxes[i * 4 + 1] = x1;
+      boxes[i * 4 + 2] = y2;
+      boxes[i * 4 + 3] = x2;
+
+    }
+    return boxes;
+  }
+
+
+
+  //     const x1 = tf.sub(result[chosen_result_tensor].slice([0,0,0], [1,result[chosen_result_tensor].shape[1],1), tf.div(result[chosen_result_tensor].slice([0,0,2], [1,result[chosen_result_tensor].shape[1],1), 2));
+  //     const y1 = tf.sub(result[chosen_result_tensor].slice([0,0,1], [1,result[chosen_result_tensor].shape[1],1), tf.div(result[chosen_result_tensor].slice([0,0,3], [1,result[chosen_result_tensor].shape[1],1), 2));
+  //     const x2 = tf.add(result[chosen_result_tensor].slice([0,0,0], [1,result[chosen_result_tensor].shape[1],1), tf.div(result[chosen_result_tensor].slice([0,0,2], [1,result[chosen_result_tensor].shape[1],1), 2));
+  //     const y2 = tf.add(result[chosen_result_tensor].slice([0,0,1], [1,result[chosen_result_tensor].shape[1],1), tf.div(result[chosen_result_tensor].slice([0,0,3], [1,result[chosen_result_tensor].shape[1],1), 2));
+  //
+  //     //const yolov5_box_corners = tf.div(tf.concat([x1, y1, x2, y2], 2), 320).dataSync() as Float32Array;
+  //
+  //     //switch up the box corners for display
+  //     return tf.div(tf.concat([y1, x1, y2, x2], 2), 320).dataSync() as Float32Array;
+
 
   /**
    * Detect objects for an image returning a list of bounding boxes with
