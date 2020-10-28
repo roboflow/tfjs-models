@@ -130,7 +130,16 @@ export class ObjectDetection {
       if (!(img instanceof tf.Tensor)) {
         //console.log(img.height); //this confirms the video is 640x640
 
-        img = (base === 'yolov5s') ? tf.browser.fromPixels(img).resizeNearestNeighbor([320, 320]).asType('float32') : tf.browser.fromPixels(img); //img is now 480x640
+        //yolov5 preproc image to resize, scale to [0,1]
+        // we do not need to switch channels (HWC -> CHW) .transpose([2, 0, 1])
+
+        img = (base === 'yolov5s') ? tf.div(tf.browser.fromPixels(img).resizeNearestNeighbor([320, 320]).asType('float32'), 255) : tf.browser.fromPixels(img); //img is now 480x640
+
+        //img = (base === 'yolov5s') ? tf.ones([320, 320, 3], 'float32') : tf.browser.fromPixels(img); //img is now 480x640
+
+
+
+
         //img = (base === 'yolov5s') ? tf.randomUniform([640, 640, 3], 0, 255, 'float32') : tf.browser.fromPixels(img); //img is now 480x640
         //console.log('img.shape', img.shape);
       }
@@ -255,8 +264,13 @@ export class ObjectDetection {
         const x2 = tf.add(result[chosen_result_tensor].slice([0,0,0], [1,result[chosen_result_tensor].shape[1],1), tf.div(result[chosen_result_tensor].slice([0,0,2], [1,result[chosen_result_tensor].shape[1],1), 2));
         const y2 = tf.add(result[chosen_result_tensor].slice([0,0,1], [1,result[chosen_result_tensor].shape[1],1), tf.div(result[chosen_result_tensor].slice([0,0,3], [1,result[chosen_result_tensor].shape[1],1), 2));
 
-        const yolov5_box_corners = tf.div(tf.concat([x1, y1, x2, y2], 2), 320).dataSync() as Float32Array;
-        //const yolov5_x1s = tf.concat([x1], 2).dataSync() as Float32Array;
+        //const yolov5_box_corners = tf.div(tf.concat([x1, y1, x2, y2], 2), 320).dataSync() as Float32Array;
+
+        //switch up the box corners for display
+        const yolov5_box_corners = tf.div(tf.concat([y1, x1, y2, x2], 2), 320).dataSync() as Float32Array;
+
+
+        const yolov5_x1s = tf.concat([x1], 2).dataSync() as Float32Array;
 
 
         //console.log('yolov5_box_corners ', yolov5_box_corners);
