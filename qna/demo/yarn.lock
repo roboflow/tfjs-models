@@ -756,9 +756,9 @@
     physical-cpu-count "^2.0.0"
 
 "@tensorflow-models/qna@1.0.0":
-  version "1.0.0-alpha3"
-  resolved "https://registry.yarnpkg.com/@tensorflow-models/qna/-/qna-1.0.0-alpha3.tgz#a6479c1b5a03b9b9accf20048c4979500b52b456"
-  integrity sha512-3fXseSAXLYh/0AXg0gXD/PobVPW3aCWc91a/Q+wLTJ0q5h2OR2m4A5FiR8aHDTuLHT+aOVu/P2OEMpigdfsNgw==
+  version "1.0.0"
+  resolved "https://registry.yarnpkg.com/@tensorflow-models/qna/-/qna-1.0.0.tgz#61893c2de2dd676b3286ca65c5ae27a7885ecbc4"
+  integrity sha512-5eVyiwm3PtMF/V9ecZaMYkAFPH3mcwl6p6CJ9jVecC7pWz3o/9uzlkqc+Dj5+2OlB8eFX4I3fxN4HlatXyOdqw==
 
 "@tensorflow/tfjs-converter@1.5.2":
   version "1.5.2"
@@ -2329,9 +2329,9 @@ decamelize@^1.1.1, decamelize@^1.2.0:
   integrity sha1-9lNNFRSCabIDUue+4m9QH5oZEpA=
 
 decode-uri-component@^0.2.0:
-  version "0.2.0"
-  resolved "https://registry.yarnpkg.com/decode-uri-component/-/decode-uri-component-0.2.0.tgz#eb3913333458775cb84cd1a1fae062106bb87545"
-  integrity sha1-6zkTMzRYd1y4TNGh+uBiEGu4dUU=
+  version "0.2.2"
+  resolved "https://registry.yarnpkg.com/decode-uri-component/-/decode-uri-component-0.2.2.tgz#e69dbe25d37941171dd540e024c444cd5188e1e9"
+  integrity sha512-FqUYQ+8o158GyGTrMFJms9qh3CqTKvAqgqsTnkLI8sKu0028orqBhxNMFkFen0zGyg6epACD32pjVk58ngIErQ==
 
 deep-is@~0.1.3:
   version "0.1.3"
