@@ -756,9 +756,9 @@
     physical-cpu-count "^2.0.0"
 
 "@tensorflow-models/qna@1.0.0":
-  version "1.0.0-alpha3"
-  resolved "https://registry.yarnpkg.com/@tensorflow-models/qna/-/qna-1.0.0-alpha3.tgz#a6479c1b5a03b9b9accf20048c4979500b52b456"
-  integrity sha512-3fXseSAXLYh/0AXg0gXD/PobVPW3aCWc91a/Q+wLTJ0q5h2OR2m4A5FiR8aHDTuLHT+aOVu/P2OEMpigdfsNgw==
+  version "1.0.0"
+  resolved "https://registry.yarnpkg.com/@tensorflow-models/qna/-/qna-1.0.0.tgz#61893c2de2dd676b3286ca65c5ae27a7885ecbc4"
+  integrity sha512-5eVyiwm3PtMF/V9ecZaMYkAFPH3mcwl6p6CJ9jVecC7pWz3o/9uzlkqc+Dj5+2OlB8eFX4I3fxN4HlatXyOdqw==
 
 "@tensorflow/tfjs-converter@1.5.2":
   version "1.5.2"
@@ -6036,9 +6036,9 @@ which@^1.2.9:
     isexe "^2.0.0"
 
 word-wrap@~1.2.3:
-  version "1.2.3"
-  resolved "https://registry.yarnpkg.com/word-wrap/-/word-wrap-1.2.3.tgz#610636f6b1f703891bd34771ccb17fb93b47079c"
-  integrity sha512-Hz/mrNwitNRh/HUAtM/VT/5VH+ygD6DV7mYKZAtHOrbs8U7lvPS6xf7EJKMF0uW1KJCl0H701g3ZGus+muE5vQ==
+  version "1.2.4"
+  resolved "https://registry.yarnpkg.com/word-wrap/-/word-wrap-1.2.4.tgz#cb4b50ec9aca570abd1f52f33cd45b6c61739a9f"
+  integrity sha512-2V81OA4ugVo5pRo46hAoD2ivUJx8jXmWXfUkY4KFNw0hEptvN0QfH3K4nHiwzGeKl5rFKedV48QVoqYavy4YpA==
 
 wrap-ansi@^2.0.0:
   version "2.1.0"
